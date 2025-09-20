@@ -1,0 +1,206 @@
+import os
+import gradio as gr
+from openai import OpenAI
+import time
+import tempfile
+import atexit
+
+# This list will hold the paths of all generated chat logs for this session.
+temp_files_to_clean = []
+
+# --- Function to perform cleanup on exit ---
+def cleanup_temp_files():
+    """Iterates through the global list and deletes the tracked files."""
+    if not temp_files_to_clean:
+        return
+    print(f"\nCleaning up {len(temp_files_to_clean)} temporary files...")
+    for file_path in temp_files_to_clean:
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"  - Error removing {file_path}: {e}")
+    print("Cleanup complete.")
+
+atexit.register(cleanup_temp_files)
+
+print("Temporary chat download files will be saved in the OS's default temp directory.")
+
+# Initialize the OpenAI client to connect to OpenRouter
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.environ.get("OPENROUTER_API_KEY"),
+)
+
+# --- Updated function signature to accept model_choice ---
+def chat_with_openai(message, history, model_choice, instructions,
+                     temperature, max_tokens, effort):
+
+    initial_download_update = gr.update(visible=False)
+
+    if not message.strip():
+        return history, "", "*No reasoning generated yet...*", initial_download_update
+
+    history = history + [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": ""}
+    ]
+
+    messages = []
+    if instructions.strip():
+        messages.append({"role": "system", "content": instructions})
+
+    for m in history:
+        if m["role"] == "assistant" and m["content"] == "":
+            continue
+        messages.append({"role": m["role"], "content": m["content"]})
+
+    try:
+        # Use a dictionary for request parameters for conditional logic
+        request_params = {
+            "model": model_choice, # Use the selected model
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": 1.0,
+            "max_tokens": int(max_tokens),
+            "stream": True,
+        }
+
+        # --- MODIFICATION: Correct, model-specific reasoning parameters ---
+        # OpenAI models use 'effort'
+        if "openai/gpt-oss" in model_choice or "openai/gpt-5" in model_choice:
+            request_params["extra_body"] = {
+                "reasoning": {"effort": effort}
+            }
+        # Grok model uses a boolean 'enabled'
+        elif "x-ai/grok-4-fast" in model_choice:
+            # We interpret 'medium' or 'high' from the UI as a request to enable reasoning
+            if effort in ["medium", "high"]:
+                request_params["extra_body"] = {
+                    "reasoning": {"enabled": True}
+                }
+        # --- END MODIFICATION ---
+
+        completion = client.chat.completions.create(**request_params)
+
+        full_content = ""
+        reasoning_content = ""
+        
+        last_yield_time = time.time()
+        flush_interval_s = 0.04
+
+        for chunk in completion:
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+            new_content = getattr(delta, "content", None) or None
+            new_reasoning = getattr(delta, "reasoning", None) or None
+
+            if new_content is not None:
+                full_content += new_content
+                history[-1]["content"] = full_content
+
+            if new_reasoning is not None:
+                reasoning_content += new_reasoning
+            if "grok-4" in model_choice and not reasoning_content:
+                reasoning_content = "*This model does not expose reasoning traces.*"
+
+            now = time.time()
+            if now - last_yield_time >= flush_interval_s:
+                last_yield_time = now
+                yield history, None, reasoning_content, initial_download_update
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".md", mode="w", encoding="utf-8") as temp_file:
+            output_filepath = temp_file.name
+            temp_file.write(full_content)
+
+        temp_files_to_clean.append(output_filepath)
+        print(f"Created and tracking temp file: {output_filepath}")
+
+        final_download_update = gr.update(visible=True, value=output_filepath)
+
+        yield history, "", reasoning_content, final_download_update
+
+    except Exception as e:
+        error_message = f"❌ An error occurred: {str(e)}"
+        history[-1]["content"] = error_message
+        yield history, "", f"An error occurred: {e}", initial_download_update
+
+# --- Gradio UI  ---
+with gr.Blocks(title="💬 OpenRouter Chatbot") as demo:
+    gr.Markdown("# 💬 Chatbot (Powered by OpenRouter)")
+    with gr.Row():
+        with gr.Column(scale=3):
+            chatbot = gr.Chatbot(height=500, type="messages", show_copy_button=True)
+            with gr.Row():
+                msg = gr.Textbox(placeholder="Type a message...", scale=4, show_label=False)
+                send_btn = gr.Button("Send", scale=1)
+            with gr.Row():
+                stop_btn = gr.Button("Stop", scale=1)
+                clear_btn = gr.Button("Clear Chat", scale=1)
+                download_btn = gr.DownloadButton("⬇️ Download Last Response", visible=False, scale=3)
+
+        with gr.Column(scale=1):
+            model_choice = gr.Dropdown(
+                label="Choose a Model (all free)",
+                choices=[
+                    "openai/gpt-oss-20b:free",
+                    "openai/gpt-oss-120b:free",
+                    "qwen/qwen3-coder:free",
+                    "qwen/qwen3-235b-a22b:free",
+                    "qwen/qwen3-30b-a3b:free",
+                    "qwen/qwen2.5-vl-72b-instruct:free",
+                    "qwen/qwen-2.5-coder-32b-instruct:free",
+                    "qwen/qwen-2.5-72b-instruct:free",
+                    "google/gemini-2.0-flash-exp:free",
+                    "meta-llama/llama-3.3-70b-instruct:free",
+                    "x-ai/grok-4-fast:free",
+                    "meta-llama/llama-3.1-405b-instruct:free",
+                    "deepseek/deepseek-chat-v3.1:free",
+                    "deepseek/deepseek-r1-0528:free",
+                    "deepseek/deepseek-r1:free",
+                    "tngtech/deepseek-r1t2-chimera:free",
+                    "z-ai/glm-4.5-air:free",
+                    "tngtech/deepseek-r1t-chimera:free",
+                    "moonshotai/kimi-dev-72b:free",
+                    "google/gemma-3-27b-it:free"
+                ],
+                value="x-ai/grok-4-fast:free"
+            )
+            
+            instructions = gr.Textbox(label="System Instructions", value="You are a helpful assistant.", lines=3)
+            # --- MODIFICATION: Clarified the label for the reasoning control ---
+            effort = gr.Radio(
+                ["low", "medium", "high"], 
+                value="medium", 
+                label="Reasoning Control (Effort for OpenAI / On for Grok)"
+            )
+            # --- END MODIFICATION ---
+            temperature = gr.Slider(0.0, 2.0, value=1.0, step=0.1, label="Temperature")
+            max_tokens = gr.Slider(100, 65535, value=8192, step=256, label="Max Tokens")
+            thoughts_box = gr.Markdown(label="🧠 Model Thoughts", value="*Reasoning will appear here...*")
+
+    # Added model_choice to the inputs list
+    inputs = [msg, chatbot, model_choice, instructions, temperature, max_tokens, effort]
+    outputs = [chatbot, msg, thoughts_box, download_btn]
+
+    e_submit = msg.submit(chat_with_openai, inputs, outputs)
+    e_click = send_btn.click(chat_with_openai, inputs, outputs)
+
+    stop_btn.click(fn=lambda: None, cancels=[e_submit, e_click], queue=False)
+
+    clear_btn.click(
+        lambda: ([], "*Reasoning will appear here...*", gr.update(visible=False)),
+        outputs=[chatbot, thoughts_box, download_btn],
+        cancels=[e_submit, e_click],
+        queue=False
+    )
+
+demo.queue()
+
+if __name__ == "__main__":
+    print("Launching Gradio interface... Press Ctrl+C to exit.")
+    print("Temporary files for this session will be cleaned up automatically on exit.")
+    demo.launch()
