@@ -173,3 +173,206 @@ Choose and add a license (e.g., MIT) at the repo root if you plan to distribute 
 - [OpenRouter](https://openrouter.ai/) for unified access to many models
 - [OpenAI Python SDK](https://github.com/openai/openai-python) for the client abstraction
 - [Gradio](https://github.com/gradio-app/gradio) for the UI framework
+
+# 👁️ Grok Image & Text Analyzer (via OpenRouter)
+
+A simple Gradio web app that lets you:
+- Ask questions with plain text (chat)
+- Upload an image and ask questions about it (vision)
+- Get answers from the Grok model served through OpenRouter
+
+This project uses the official `openai` Python SDK pointing at the OpenRouter API.
+
+Repository: [zakcali/open-router](https://github.com/zakcali/open-router)  
+Entry point: `openrouter-image-analysis.py`
+
+---
+
+## Features
+
+- Text-only or image+text prompts
+- Automatic base64 encoding of uploaded images
+- Runs locally via Gradio UI
+- Uses OpenRouter with the `x-ai/grok-4-fast:free` model by default
+
+---
+
+## Quickstart
+
+### Prerequisites
+- Python 3.9+ (recommended)
+- An OpenRouter API key: create one at [OpenRouter](https://openrouter.ai)
+
+### 1) Clone and enter the repo
+```bash
+git clone https://github.com/zakcali/open-router.git
+cd open-router
+```
+
+### 2) Create a virtual environment and install dependencies
+```bash
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install -U pip
+pip install openai gradio pillow
+```
+
+### 3) Set your API key (OPENROUTER_API_KEY)
+
+- macOS/Linux:
+```bash
+export OPENROUTER_API_KEY="sk-or-xxxxxxxxxxxxxxxx"
+```
+
+- Windows (PowerShell):
+```powershell
+$env:OPENROUTER_API_KEY="sk-or-xxxxxxxxxxxxxxxx"
+```
+
+- Windows (Command Prompt):
+```cmd
+set OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxx
+```
+
+Tip: You can also use a `.env` loader if you prefer, but this script reads from the environment directly.
+
+### 4) Run the app
+```bash
+python openrouter-image-analysis.py
+```
+
+Gradio will print a local URL (and optionally a public share URL) to your terminal. Open it in your browser.
+
+---
+
+## Usage
+
+1. Optional: Upload an image (PNG/JPG).  
+2. Optional: Enter a prompt or question.  
+   - If you don’t provide a prompt but upload an image, the app uses: “Describe this image in detail.”
+3. Click “Analyze.”  
+4. Read the model’s text response in the right-hand panel.  
+5. Use “Clear Inputs” to reset.
+
+---
+
+## How it works (Code Overview)
+
+File: `openrouter-image-analysis.py`
+
+- Libraries:
+  - `openai` (the official OpenAI Python SDK) configured to point at OpenRouter
+  - `gradio` for UI
+  - `PIL` (Pillow) for basic image handling
+  - `base64`/`BytesIO` for encoding images into data URLs
+
+- API Client:
+  ```python
+  from openai import OpenAI
+  client = OpenAI(
+      base_url="https://openrouter.ai/api/v1",
+      api_key=os.environ.get("OPENROUTER_API_KEY"),
+  )
+  ```
+
+- The main function `get_grok_response(prompt, source_image)`:
+  - Validates `OPENROUTER_API_KEY`.
+  - If an image is provided, converts it to JPEG bytes and builds a `data:image/jpeg;base64,...` data URL.
+  - Builds the `messages` payload for chat completions:
+    - Text-only:
+      ```json
+      [{"role": "user", "content": "your prompt"}]
+      ```
+    - Image+text:
+      ```json
+      [{
+        "role": "user",
+        "content": [
+          {"type": "text", "text": "your prompt"},
+          {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
+        ]
+      }]
+      ```
+  - Calls:
+    ```python
+    client.chat.completions.create(
+      model="x-ai/grok-4-fast:free",
+      messages=api_messages,
+      max_tokens=4096,
+    )
+    ```
+  - Displays the first choice’s text content in the UI.
+
+- UI:
+  - Built with `gr.Blocks` and includes:
+    - Image uploader (PIL)
+    - Prompt textbox
+    - Analyze & Clear buttons
+    - Read-only textbox for the model’s response
+    - Status area for success/error messages
+
+---
+
+## Changing the model
+
+To use a different OpenRouter model, update the `model` field in the `chat.completions.create(...)` call:
+
+```python
+completion = client.chat.completions.create(
+    model="x-ai/grok-4:latest",  # example
+    messages=api_messages,
+    max_tokens=2048,
+)
+```
+
+Find available models and pricing on [OpenRouter Models](https://openrouter.ai/models). Some models require additional provider setup or may not support images.
+
+---
+
+## Troubleshooting
+
+- “CRITICAL: OPENROUTER_API_KEY environment variable not found.”  
+  Set your key and restart the app. Confirm the variable is in the same shell session used to run Python.
+
+- 401 Unauthorized or similar auth errors  
+  Ensure the key is valid, has not expired, and is prefixed correctly (e.g., `sk-or-...`).
+
+- Large image issues or timeouts  
+  Very large uploads may slow down encoding or exceed limits. Try smaller images, or compress before uploading.
+
+- Blank responses  
+  The free tier or selected model may throttle or return empty content under load. Try again or switch models.
+
+---
+
+## Security Notes
+
+- Never commit API keys to source control.
+- Prefer environment variables or a secret manager for production use.
+- The app converts images to JPEG for transmission; transparency will be lost and color profiles may change.
+
+---
+
+## Extending the app
+
+Ideas:
+- Add a model dropdown in the UI
+- Support streaming responses
+- Temperature/Top-p controls
+- Drag-and-drop multiple images
+- Preserve original image format (PNG/WebP) when possible
+- Add logging and better error messages in the UI
+
+---
+
+## License and Acknowledgments
+
+- Uses the `openai` Python SDK, pointing at the OpenRouter API.
+- UI built with [Gradio](https://gradio.app).
+- Grok models provided via [OpenRouter](https://openrouter.ai).
+
+See the repository’s license file for details.
