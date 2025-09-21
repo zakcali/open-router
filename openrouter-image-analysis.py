@@ -49,7 +49,7 @@ def get_vision_response(prompt, source_image, model_choice):
         completion = client.chat.completions.create(
             model=model_choice, # Use the selected model
             messages=api_messages,
-            max_tokens=8192,
+            max_tokens=32768,
         )
 
         text_response = completion.choices[0].message.content
@@ -72,7 +72,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
                 choices=[
                     "x-ai/grok-4-fast:free",
                     "qwen/qwen2.5-vl-72b-instruct:free",
-                    "qwen/qwen2.5-vl-32b-instruct:free",
                     "google/gemini-2.0-flash-exp:free",
                     "meta-llama/llama-4-maverick:free",
                     "meta-llama/llama-4-scout:free",
