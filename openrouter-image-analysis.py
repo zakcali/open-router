@@ -1,14 +1,11 @@
-# --- START OF FILE gradio-openrouter-grok.py ---
-
 import os
 import gradio as gr
-from openai import OpenAI # <-- 1. Switched to the OpenAI library
+from openai import OpenAI
 from PIL import Image
 from io import BytesIO
-import base64 # <-- 2. Added for image encoding
+import base64
 
 # --- Configuration ---
-# 3. Changed to use OPENROUTER_API_KEY
 api_key = os.environ.get("OPENROUTER_API_KEY")
 if not api_key:
     print("CRITICAL: OPENROUTER_API_KEY environment variable not found.")
@@ -19,31 +16,26 @@ client = OpenAI(
     api_key=api_key,
 )
 
-# --- Core Logic (modified for OpenRouter and Grok) ---
-def get_grok_response(prompt, source_image):
+# --- Core Logic (modified for model selection) ---
+def get_vision_response(prompt, source_image, model_choice):
     if not api_key:
         raise gr.Error("OPENROUTER_API_KEY not set.")
     if not prompt or not prompt.strip():
-        # 4. If an image is provided, a prompt isn't strictly necessary
         if source_image is None:
             raise gr.Error("Please enter a prompt (or upload an image).")
         else:
-            prompt = "Describe this image in detail." # Default prompt
+            prompt = "Describe this image in detail."
 
-    # --- 5. Construct the API message payload ---
+    # --- Construct the API message payload ---
     api_messages = []
     if source_image is None:
-        # Text-to-text functionality
         api_messages.append({"role": "user", "content": prompt})
     else:
-        # Image-to-text functionality
-        # Convert PIL Image to base64 data URL
         buffered = BytesIO()
-        source_image.save(buffered, format="JPEG") # Save image to a memory buffer
+        source_image.save(buffered, format="JPEG")
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
         image_url = f"data:image/jpeg;base64,{img_str}"
 
-        # Build the message structure for vision models
         api_messages.append({
             "role": "user",
             "content": [
@@ -53,59 +45,69 @@ def get_grok_response(prompt, source_image):
         })
 
     try:
-        # --- 6. Make the API call to OpenRouter ---
+        # --- Make the API call to OpenRouter with the selected model ---
         completion = client.chat.completions.create(
-            model="x-ai/grok-4-fast:free",
+            model=model_choice, # Use the selected model
             messages=api_messages,
-            max_tokens=4096, # Optional: set a limit for the response
+            max_tokens=8192,
         )
-        
-        # --- 7. Process the text-only response ---
+
         text_response = completion.choices[0].message.content
-        return (text_response, "✅ Analysis complete.")
+        return (text_response, f"✅ Analysis complete with {model_choice}.")
 
     except Exception as e:
-        # Catch any other unexpected errors
         print(f"An unexpected error occurred: {e}")
         error_message = f"❌ An unexpected error occurred: {e}"
         return ("", error_message)
 
-# --- 8. Simplified Gradio User Interface ---
-with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Grok Image & Text Analyzer") as demo:
-    gr.Markdown("# 👁️ Grok Image & Text Analyzer (via OpenRouter)")
-    gr.Markdown("Provide a text prompt, OR upload an image and ask a question about it.")
+# --- Gradio User Interface ---
+with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text Analyzer") as demo:
+    gr.Markdown("# 👁️ Multimodal Image & Text Analyzer (via OpenRouter)")
+    gr.Markdown("Provide a text prompt and/or an image, and select a model to analyze it.")
     with gr.Row():
         with gr.Column(scale=1):
-            input_image = gr.Image(type="pil", label="Upload an Image (Optional)", height=400)
+            # --- Model Selection Dropdown ---
+            model_choice = gr.Dropdown(
+                label="Choose a Vision Model",
+                choices=[
+                    "x-ai/grok-4-fast:free",
+                    "qwen/qwen2.5-vl-72b-instruct:free",
+                    "meta-llama/llama-3.2-90b-vision-instruct",
+                    "google/gemini-2.0-flash-exp:free",
+                    "meta-llama/llama-4-maverick:free",
+                ],
+                value="x-ai/grok-4-fast:free"
+            )
+            input_image = gr.Image(type="pil", label="Upload an Image (Optional)", height=350)
             prompt_box = gr.Textbox(
                 label="Your Prompt",
                 placeholder="What is in this image? or Ask anything...",
                 lines=5
             )
             with gr.Row():
-                clear_btn = gr.Button(value="🗑️ Clear Inputs", scale=1)
+                clear_btn = gr.Button(value="🗑️ Clear I/O", scale=1)
                 generate_btn = gr.Button("Analyze", variant="primary", scale=2)
             status_box = gr.Markdown("")
         with gr.Column(scale=1):
-            # The UI is now focused on text output
             text_output_box = gr.Textbox(
                 label="Model's Text Response",
-                visible=True, # Now always visible
+                visible=True,
                 lines=20,
                 interactive=False
             )
 
-    # Update the click function and its inputs/outputs
+    # Update the click function to include the new model_choice input
     generate_btn.click(
-        fn=get_grok_response,
-        inputs=[prompt_box, input_image],
+        fn=get_vision_response,
+        inputs=[prompt_box, input_image, model_choice],
         outputs=[text_output_box, status_box]
     )
-    # Clear function now clears all inputs
+
+# Clear function now clears all inputs and the text output
     clear_btn.click(
-        fn=lambda: (None, "", "Inputs cleared."),
+        fn=lambda: (None, "", "", "Inputs and output cleared."),
         inputs=None,
-        outputs=[input_image, prompt_box, status_box],
+        outputs=[input_image, prompt_box, text_output_box, status_box],
         queue=False
     )
 
