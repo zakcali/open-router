@@ -72,9 +72,15 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
                 choices=[
                     "x-ai/grok-4-fast:free",
                     "qwen/qwen2.5-vl-72b-instruct:free",
-                    "meta-llama/llama-3.2-90b-vision-instruct",
+                    "qwen/qwen2.5-vl-32b-instruct:free",
                     "google/gemini-2.0-flash-exp:free",
                     "meta-llama/llama-4-maverick:free",
+                    "meta-llama/llama-4-scout:free",
+                    "mistralai/mistral-small-3.2-24b-instruct:free",
+                    "moonshotai/kimi-vl-a3b-thinking:free",
+                    "google/gemma-3-27b-it:free",
+                    "google/gemini-2.5-flash-image-preview",
+                    "meta-llama/llama-3.2-90b-vision-instruct",
                 ],
                 value="x-ai/grok-4-fast:free"
             )
