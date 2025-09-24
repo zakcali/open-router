@@ -198,7 +198,7 @@ Entry point: `openrouter-image-analysis.py`
 - Automatic base64 encoding of uploaded images
 - Runs locally via Gradio UI
 - Status area shows which model handled your request
-- Uses `max_tokens=8192` by default
+- Uses `max_tokens=32768` by default
 
 ---
 
@@ -310,7 +310,7 @@ File: `openrouter-image-analysis.py`
     completion = client.chat.completions.create(
       model=model_choice,
       messages=api_messages,
-      max_tokens=8192,
+      max_tokens=32768,
     )
     ```
   - Returns the first choice’s text content and a status message like:
@@ -362,7 +362,7 @@ File: `openrouter-image-analysis.py`
   Very large uploads may slow down encoding or exceed limits. Try smaller images, or compress before uploading.
 
 - Blank or partial responses  
-  Free tiers or certain models may throttle or return empty/short content under load. Try again, switch models, or reduce prompt size. Note that responses can still be limited by provider-side caps even with `max_tokens=8192`.
+  Free tiers or certain models may throttle or return empty/short content under load. Try again, switch models, or reduce prompt size. Note that responses can still be limited by provider-side caps even with `max_tokens=32768`.
 
 - UI shows an unexpected error  
   The status area will show errors like:
@@ -441,7 +441,7 @@ Entry point: `openrouter-image-analysis.py`
 - Renders image outputs (when the model returns images) alongside text responses
 - Runs locally via Gradio UI
 - Status area shows which model handled your request
-- Uses `max_tokens=8192` by default
+- Uses `max_tokens=32768` by default
 
 Note: Not all listed models can generate or edit images. For image generation/editing, choose a capable model such as `google/gemini-2.5-flash-image-preview`.
 
@@ -572,7 +572,7 @@ File: `openrouter-image-analysis.py`
     completion = client.chat.completions.create(
       model=model_choice,
       messages=api_messages,
-      max_tokens=8192,
+      max_tokens=32768,
     )
     ```
   - The app displays:
@@ -624,7 +624,7 @@ Notes:
   Very large uploads may slow down encoding or exceed limits. Try smaller images, or compress before uploading.
 
 - Blank or partial responses
-  Free tiers or certain models may throttle or return empty/short content under load. Try again, switch models, or reduce prompt size. Note that responses can still be limited by provider-side caps even with `max_tokens=8192`.
+  Free tiers or certain models may throttle or return empty/short content under load. Try again, switch models, or reduce prompt size. Note that responses can still be limited by provider-side caps even with `max_tokens=32768`.
 
 - UI shows an unexpected error
   The status area will show errors like:
