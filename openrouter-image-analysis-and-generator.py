@@ -4,6 +4,33 @@ from openai import OpenAI
 from PIL import Image
 from io import BytesIO
 import base64
+import tempfile
+import atexit
+
+# --- Temporary File Management ---
+
+# This list will hold the paths of all generated chat logs for this session.
+temp_files_to_clean = []
+
+def cleanup_temp_files():
+    """Iterates through the global list and deletes the tracked files."""
+    if not temp_files_to_clean:
+        return
+    print(f"\nCleaning up {len(temp_files_to_clean)} temporary files...")
+    for file_path in temp_files_to_clean:
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass # File was already deleted or never existed
+        except Exception as e:
+            print(f"  - Error removing {file_path}: {e}")
+    print("Cleanup complete.")
+
+# Register the cleanup function to be called on script exit
+atexit.register(cleanup_temp_files)
+
+print("Temporary download files will be saved in the OS's default temp directory and cleaned on exit.")
+
 
 # --- Configuration ---
 api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -18,6 +45,8 @@ client = OpenAI(
 
 # --- Core Logic (Unified approach) ---
 def get_multimodal_response(prompt, source_image, model_choice):
+    initial_download_update = gr.update(visible=False)
+
     if not api_key:
         raise gr.Error("OPENROUTER_API_KEY not set.")
     if not prompt and not source_image:
@@ -34,7 +63,6 @@ def get_multimodal_response(prompt, source_image, model_choice):
         # --- Construct the payload based on user input ---
         if source_image:
             # If an image is provided, ALWAYS format it as a vision request.
-            # The API will return an error if the model doesn't support image inputs.
             buffered = BytesIO()
             source_image.save(buffered, format="JPEG")
             img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -65,6 +93,21 @@ def get_multimodal_response(prompt, source_image, model_choice):
         message = completion.choices[0].message
         text_response = message.content or ""
         image_output = None
+        
+        # Default to the initial hidden state for the download button
+        download_update = initial_download_update
+
+        if text_response:
+            # If there's text, create a temporary file for download
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".md", mode="w", encoding="utf-8") as temp_file:
+                output_filepath = temp_file.name
+                temp_file.write(text_response)
+            
+            # Track the file for cleanup and prepare the button update
+            temp_files_to_clean.append(output_filepath)
+            print(f"Created and tracking temp file: {output_filepath}")
+            download_update = gr.update(visible=True, value=output_filepath)
+
 
         if hasattr(message, 'images') and message.images:
             image_url = message.images[0]["image_url"]["url"]
@@ -77,13 +120,13 @@ def get_multimodal_response(prompt, source_image, model_choice):
         else:
              status_message = f"✅ Text response received from {model_choice}."
 
-        return (text_response, image_output, status_message)
+        return (text_response, image_output, status_message, download_update)
 
     except Exception as e:
         print(f"An API error occurred: {e}")
         # Display the raw API error to the user
         error_message = f"❌ An API error occurred: {e}"
-        return ("", None, error_message)
+        return ("", None, error_message, initial_download_update)
 
 # --- Gradio User Interface ---
 with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as demo:
@@ -118,19 +161,34 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as 
                 run_btn = gr.Button("Run Model", variant="primary", scale=2)
             status_box = gr.Markdown("")
         with gr.Column(scale=1):
-            text_output_box = gr.Textbox(label="Model's Text Response", lines=5, interactive=False)
+            # show_copy_button=True
+            text_output_box = gr.Textbox(
+                label="Model's Text Response",
+                lines=5,
+                interactive=False,
+                show_copy_button=True
+            )
+            # download button
+            download_btn = gr.DownloadButton(
+                "⬇️ Download Text Response",
+                visible=False
+            )
             image_output_box = gr.Image(label="Image Output", interactive=False, height=400)
+
+    # Download button
+    outputs_list = [text_output_box, image_output_box, status_box, download_btn]
 
     run_btn.click(
         fn=get_multimodal_response,
         inputs=[prompt_box, input_image, model_choice],
-        outputs=[text_output_box, image_output_box, status_box]
+        outputs=outputs_list
     )
 
+    # Hide the download button
     clear_btn.click(
-        fn=lambda: (None, "", "", None, "Inputs and outputs cleared."),
+        fn=lambda: (None, "", "", None, "Inputs and outputs cleared.", gr.update(visible=False)),
         inputs=None,
-        outputs=[input_image, prompt_box, text_output_box, image_output_box, status_box],
+        outputs=[input_image, prompt_box, text_output_box, image_output_box, status_box, download_btn],
         queue=False
     )
 

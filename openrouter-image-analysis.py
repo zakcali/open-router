@@ -4,6 +4,31 @@ from openai import OpenAI
 from PIL import Image
 from io import BytesIO
 import base64
+import tempfile
+import atexit
+
+# --- Temporary File Management ---
+# This list will hold the paths of all generated download files for this session.
+temp_files_to_clean = []
+
+def cleanup_temp_files():
+    """Iterates through the global list and deletes the tracked files on exit."""
+    if not temp_files_to_clean:
+        return
+    print(f"\nCleaning up {len(temp_files_to_clean)} temporary files...")
+    for file_path in temp_files_to_clean:
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass  # File was already deleted or never created
+        except Exception as e:
+            print(f"  - Error removing {file_path}: {e}")
+    print("Cleanup complete.")
+
+# Register the cleanup function to be called on script exit
+atexit.register(cleanup_temp_files)
+print("Temporary download files will be saved in the OS's default temp directory and cleaned on exit.")
+
 
 # --- Configuration ---
 api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -16,8 +41,10 @@ client = OpenAI(
     api_key=api_key,
 )
 
-# --- Core Logic (modified for model selection) ---
 def get_vision_response(prompt, source_image, model_choice):
+    # The download button is hidden by default
+    initial_download_update = gr.update(visible=False)
+
     if not api_key:
         raise gr.Error("OPENROUTER_API_KEY not set.")
     if not prompt or not prompt.strip():
@@ -47,18 +74,31 @@ def get_vision_response(prompt, source_image, model_choice):
     try:
         # --- Make the API call to OpenRouter with the selected model ---
         completion = client.chat.completions.create(
-            model=model_choice, # Use the selected model
+            model=model_choice,
             messages=api_messages,
             max_tokens=32768,
         )
 
         text_response = completion.choices[0].message.content
-        return (text_response, f"✅ Analysis complete with {model_choice}.")
+        download_update = initial_download_update
+
+        # If a text response was received, create a temporary file for it
+        if text_response:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".md", mode="w", encoding="utf-8") as temp_file:
+                output_filepath = temp_file.name
+                temp_file.write(text_response)
+            
+            # Track the file for cleanup and prepare the button to be shown
+            temp_files_to_clean.append(output_filepath)
+            print(f"Created and tracking temp file: {output_filepath}")
+            download_update = gr.update(visible=True, value=output_filepath)
+        
+        return (text_response, f"✅ Analysis complete with {model_choice}.", download_update)
 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         error_message = f"❌ An unexpected error occurred: {e}"
-        return ("", error_message)
+        return ("", error_message, initial_download_update)
 
 # --- Gradio User Interface ---
 with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text Analyzer") as demo:
@@ -66,7 +106,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
     gr.Markdown("Provide a text prompt and/or an image, and select a model to analyze it.")
     with gr.Row():
         with gr.Column(scale=1):
-            # --- Model Selection Dropdown ---
             model_choice = gr.Dropdown(
                 label="Choose a Vision Model",
                 choices=[
@@ -94,25 +133,34 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
                 generate_btn = gr.Button("Analyze", variant="primary", scale=2)
             status_box = gr.Markdown("")
         with gr.Column(scale=1):
+            # show_copy_button=True
             text_output_box = gr.Textbox(
                 label="Model's Text Response",
                 visible=True,
                 lines=20,
-                interactive=False
+                interactive=False,
+                show_copy_button=True 
+            )
+            # Download button, initially hidden
+            download_btn = gr.DownloadButton(
+                "⬇️ Download Text Response", 
+                visible=False
             )
 
-    # Update the click function to include the new model_choice input
+    # List of outputs includes the download button
+    outputs_list = [text_output_box, status_box, download_btn]
+    
     generate_btn.click(
         fn=get_vision_response,
         inputs=[prompt_box, input_image, model_choice],
-        outputs=[text_output_box, status_box]
+        outputs=outputs_list
     )
 
-# Clear function now clears all inputs and the text output
+    # Hides the download button
     clear_btn.click(
-        fn=lambda: (None, "", "", "Inputs and output cleared."),
+        fn=lambda: (None, "", "", "Inputs and output cleared.", gr.update(visible=False)),
         inputs=None,
-        outputs=[input_image, prompt_box, text_output_box, status_box],
+        outputs=[input_image, prompt_box, text_output_box, status_box, download_btn],
         queue=False
     )
 
