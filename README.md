@@ -181,6 +181,8 @@ A simple Gradio web app that lets you:
 - Upload an image and ask questions about it (vision)
 - Select among multiple vision-capable models from a dropdown
 - Get answers via the OpenRouter API using the official `openai` Python SDK (pointed at OpenRouter)
+- Download the text response as a Markdown file
+- Temporary files are automatically cleaned up on exit
 
 Repository: [zakcali/open-router](https://github.com/zakcali/open-router)  
 Entry point: `openrouter-image-analysis.py`
@@ -411,6 +413,8 @@ A simple Gradio web app that now lets you:
 - Modify or transform an uploaded image based on your prompt (when supported)
 - Select among multiple vision-capable models from a dropdown
 - Get answers and outputs via the OpenRouter API using the official `openai` Python SDK (pointed at OpenRouter)
+- Download the text response as a Markdown file
+- Temporary files are automatically cleaned up on exit
 
 Repository: [zakcali/open-router](https://github.com/zakcali/open-router)  
 Entry point: `openrouter-image-analysis.py`
