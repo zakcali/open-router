@@ -32,6 +32,42 @@ atexit.register(cleanup_temp_files)
 print("Temporary download files will be saved in the OS's default temp directory and cleaned on exit.")
 
 
+# --- Function to read system prompt from a file ---
+def load_system_prompt(filepath="system-prompt-image.txt"):
+    """Loads the system prompt from a text file, with a fallback default."""
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        print(f"Warning: '{filepath}' not found. Using a default system prompt.")
+        return "You are a helpful multimodal AI assistant."
+
+# --- Function to read the model list from a file ---
+def load_models(filepath="models-image.txt"):
+    """Loads the list of models from a text file, with a fallback default list."""
+    default_models = [
+        "x-ai/grok-4-fast:free",
+        "qwen/qwen2.5-vl-72b-instruct:free",
+        "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-4-maverick:free",
+        "meta-llama/llama-4-scout:free",
+        "mistralai/mistral-small-3.2-24b-instruct:free",
+        "moonshotai/kimi-vl-a3b-thinking:free",
+        "google/gemma-3-27b-it:free",
+        "google/gemini-2.5-flash-image-preview",
+        "meta-llama/llama-3.2-90b-vision-instruct",
+    ]
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            models = [line.strip() for line in f if line.strip()]
+            if not models:
+                print(f"Warning: '{filepath}' was empty. Using default model list.")
+                return default_models
+            return models
+    except FileNotFoundError:
+        print(f"Warning: '{filepath}' not found. Using default model list.")
+        return default_models
+
 # --- Configuration ---
 api_key = os.environ.get("OPENROUTER_API_KEY")
 if not api_key:
@@ -44,7 +80,7 @@ client = OpenAI(
 )
 
 # --- Core Logic (Unified approach) ---
-def get_multimodal_response(prompt, source_image, model_choice):
+def get_multimodal_response(prompt, source_image, model_choice, instructions, max_tokens):
     initial_download_update = gr.update(visible=False)
 
     if not api_key:
@@ -58,6 +94,10 @@ def get_multimodal_response(prompt, source_image, model_choice):
 
     api_messages = []
     extra_params = {}
+    
+    # Add system prompt if provided
+    if instructions and instructions.strip():
+        api_messages.append({"role": "system", "content": instructions})
 
     try:
         # --- Construct the payload based on user input ---
@@ -85,7 +125,7 @@ def get_multimodal_response(prompt, source_image, model_choice):
         completion = client.chat.completions.create(
             model=model_choice,
             messages=api_messages,
-            max_tokens=32768,
+            max_tokens=int(max_tokens),
             **extra_params
         )
 
@@ -128,27 +168,22 @@ def get_multimodal_response(prompt, source_image, model_choice):
         error_message = f"❌ An API error occurred: {e}"
         return ("", None, error_message, initial_download_update)
 
+# --- Load external configuration before building UI ---
+model_list = load_models()
+initial_system_prompt = load_system_prompt()
+default_model = model_list[0] if model_list else None
+
 # --- Gradio User Interface ---
 with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as demo:
     gr.Markdown("# 👁️ Multimodal AI Studio (via OpenRouter)")
     gr.Markdown("Provide a text prompt and/or an image to any model and see what happens.")
     with gr.Row():
+        # --- LEFT COLUMN ---
         with gr.Column(scale=1):
             model_choice = gr.Dropdown(
                label="Choose a Model",
-               choices=[
-                    "x-ai/grok-4-fast:free",
-                    "qwen/qwen2.5-vl-72b-instruct:free",
-                    "google/gemini-2.0-flash-exp:free",
-                    "meta-llama/llama-4-maverick:free",
-                    "meta-llama/llama-4-scout:free",
-                    "mistralai/mistral-small-3.2-24b-instruct:free",
-                    "moonshotai/kimi-vl-a3b-thinking:free",
-                    "google/gemma-3-27b-it:free",
-                    "google/gemini-2.5-flash-image-preview",
-                    "meta-llama/llama-3.2-90b-vision-instruct",
-               ],
-               value="x-ai/grok-4-fast:free"
+               choices=model_list,
+               value=default_model
             )
             input_image = gr.Image(type="pil", label="Upload an Image (Optional)", height=350)
             prompt_box = gr.Textbox(
@@ -160,31 +195,46 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as 
                 clear_btn = gr.Button(value="🗑️ Clear I/O", scale=1)
                 run_btn = gr.Button("Run Model", variant="primary", scale=2)
             status_box = gr.Markdown("")
+        
+        # --- RIGHT COLUMN ---
         with gr.Column(scale=1):
-            # show_copy_button=True
             text_output_box = gr.Textbox(
                 label="Model's Text Response",
                 lines=5,
                 interactive=False,
                 show_copy_button=True
             )
-            # download button
             download_btn = gr.DownloadButton(
                 "⬇️ Download Text Response",
                 visible=False
             )
             image_output_box = gr.Image(label="Image Output", interactive=False, height=400)
+            
+            # --- ADDED UI ELEMENTS ---
+            instructions = gr.Textbox(
+                label="System Instructions", 
+                value=initial_system_prompt, 
+                lines=3
+            )
+            max_tokens = gr.Slider(
+                8192, 
+                65535, 
+                value=32768, 
+                step=256, 
+                label="Max Tokens"
+            )
 
-    # Download button
+    # Define inputs and outputs for the Gradio function
+    inputs_list = [prompt_box, input_image, model_choice, instructions, max_tokens]
     outputs_list = [text_output_box, image_output_box, status_box, download_btn]
 
     run_btn.click(
         fn=get_multimodal_response,
-        inputs=[prompt_box, input_image, model_choice],
+        inputs=inputs_list,
         outputs=outputs_list
     )
 
-    # Hide the download button
+    # Configure the clear button
     clear_btn.click(
         fn=lambda: (None, "", "", None, "Inputs and outputs cleared.", gr.update(visible=False)),
         inputs=None,

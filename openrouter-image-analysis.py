@@ -194,9 +194,9 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
                 lines=3
             )
             max_tokens = gr.Slider(
-                100, 
+                8192, 
                 65535, 
-                value=8192, 
+                value=32768, 
                 step=256, 
                 label="Max Tokens"
             )
