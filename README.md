@@ -4,7 +4,7 @@ A lightweight Gradio app to chat with multiple models on [OpenRouter](https://op
 
 The chatbot is now configurable via external files, allowing you to easily customize the model list and system prompt without editing the Python code.
 
-- File: `openrouter-gradio-text2text.py`
+- File: `openrouter-text2text.py`
 - Repo: [zakcali/open-router](https://github.com/zakcali/open-router)
 
 ## Features
