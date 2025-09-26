@@ -195,12 +195,14 @@ Choose and add a license (e.g., MIT) at the repo root if you plan to distribute 
 A simple Gradio web app that lets you:
 - Ask questions with plain text (chat)
 - Upload an image and ask questions about it (vision)
-- Select among multiple vision-capable models from a dropdown
-- Get answers via the OpenRouter API using the official `openai` Python SDK (pointed at OpenRouter)
+- Select from a list of vision-capable models populated from an external file (`models-image.txt`)
+- Customize the system prompt via a UI textbox, with the initial prompt loaded from `system-prompt-image.txt`
+- Control the `max_tokens` for the response with a UI slider
+- Get answers via the OpenRouter API using the official `openai` Python SDK
 - Download the text response as a Markdown file
-- Temporary files are automatically cleaned up on exit
+- Automatically clean up temporary files on exit
 
-Repository: [zakcali/open-router](https://github.com/zakcali/open-router)  
+Repository: [zakcali/open-router](https://github.com/zakcali/open-router)
 Entry point: `openrouter-image-analysis.py`
 
 ---
@@ -208,13 +210,13 @@ Entry point: `openrouter-image-analysis.py`
 ## Features
 
 - Text-only or image+text prompts
-- Model selection dropdown (pick a vision model per request)
-  - Default: `x-ai/grok-4-fast:free`
-  - Also includes: `qwen/qwen2.5-vl-72b-instruct:free`, `meta-llama/llama-3.2-90b-vision-instruct`, `google/gemini-2.0-flash-exp:free`, `meta-llama/llama-4-maverick:free`
+- **External Model List**: Model selection dropdown is populated from `models-image.txt`, making it easy to customize.
+- **Configurable System Prompt**: Edit the system instructions directly in the UI. The default prompt is loaded from `system-prompt-image.txt`.
+- **Adjustable Max Tokens**: Control the maximum length of the model's response using a slider.
 - Automatic base64 encoding of uploaded images
 - Runs locally via Gradio UI
 - Status area shows which model handled your request
-- Uses `max_tokens=32768` by default
+- Downloadable responses
 
 ---
 
@@ -261,7 +263,45 @@ set OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxx
 
 Tip: You can also use a `.env` loader if you prefer, but this script reads from the environment directly.
 
-### 4) Run the app
+### 4) Create Configuration Files
+The app requires two text files to run. Create them in the same directory as the script.
+
+**a. Create `models-image.txt`:**
+This file lists the models that will appear in the dropdown. Add one model name per line. The first model in the file will be the default.
+
+*macOS/Linux:*
+```bash
+touch models-image.txt
+```
+*Windows:*
+```cmd
+echo. > models-image.txt
+```
+**Example `models-image.txt` content:**
+```
+x-ai/grok-4-fast:free
+qwen/qwen2.5-vl-72b-instruct:free
+google/gemini-2.0-flash-exp:free
+meta-llama/llama-4-maverick:free
+meta-llama/llama-4-scout:free```
+
+**b. Create `system-prompt-image.txt`:**
+This file contains the default system instructions for the model.
+
+*macOS/Linux:*
+```bash
+touch system-prompt-image.txt
+```
+*Windows:*
+```cmd
+echo. > system-prompt-image.txt
+```
+**Example `system-prompt-image.txt` content:**
+```
+You are an expert at analyzing images.
+```
+
+### 5) Run the app
 ```bash
 python openrouter-image-analysis.py
 ```
@@ -272,14 +312,15 @@ Gradio will print a local URL (and optionally a public share URL) to your termin
 
 ## Usage
 
-1. Choose a vision model from the “Choose a Vision Model” dropdown.  
-   - The default is `x-ai/grok-4-fast:free`.
-2. Optional: Upload an image (PNG/JPG).  
-3. Optional: Enter a prompt or question.  
-   - If you don’t provide a prompt but upload an image, the app uses: “Describe this image in detail.”
-4. Click “Analyze.”  
-5. Read the model’s text response in the right-hand panel.  
-6. Use “🗑️ Clear I/O” to reset inputs and output.
+1.  Choose a vision model from the “Choose a Vision Model” dropdown.
+2.  Optional: Modify the system prompt in the "System Instructions" textbox.
+3.  Optional: Adjust the "Max Tokens" slider to limit the response length.
+4.  Optional: Upload an image (PNG/JPG).
+5.  Optional: Enter a text prompt or question.
+    -   If you don’t provide a prompt but upload an image, the app uses: “Describe this image in detail.”
+6.  Click “Analyze.”
+7.  Read the model’s text response.
+8.  Use “🗑️ Clear I/O” to reset inputs and output.
 
 ---
 
@@ -287,105 +328,59 @@ Gradio will print a local URL (and optionally a public share URL) to your termin
 
 File: `openrouter-image-analysis.py`
 
-- Libraries:
-  - `openai` (the official OpenAI Python SDK) configured to point at OpenRouter
-  - `gradio` for UI
-  - `PIL` (Pillow) for basic image handling
-  - `base64`/`BytesIO` for encoding images into data URLs
-
-- API Client:
-  ```python
-  from openai import OpenAI
-  client = OpenAI(
-      base_url="https://openrouter.ai/api/v1",
-      api_key=os.environ.get("OPENROUTER_API_KEY"),
-  )
-  ```
-
-- Core function `get_vision_response(prompt, source_image, model_choice)`:
-  - Validates `OPENROUTER_API_KEY`.
-  - Falls back to “Describe this image in detail.” if no prompt is provided but an image is uploaded.
-  - If an image is provided, converts it to JPEG bytes and builds a `data:image/jpeg;base64,...` data URL.
-  - Builds the `messages` payload for chat completions:
-    - Text-only:
+- **Libraries**: `openai`, `gradio`, `PIL`, `base64`, `BytesIO`.
+- **Configuration**: The app starts by calling `load_models()` and `load_system_prompt()` to read from `models-image.txt` and `system-prompt-image.txt`.
+- **Core function `get_vision_response(prompt, source_image, model_choice, instructions, max_tokens)`**:
+    - If an image is provided, it's converted to a `data:image/jpeg;base64,...` data URL.
+    - Builds the `messages` payload, including a `system` message if provided:
       ```json
-      [{"role": "user", "content": "your prompt"}]
-      ```
-    - Image+text:
-      ```json
-      [{
-        "role": "user",
-        "content": [
+      [
+        {"role": "system", "content": "your instructions"},
+        {"role": "user", "content": [
           {"type": "text", "text": "your prompt"},
-          {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
-        ]
-      }]
+          {"type": "image_url", "image_url": {"url": "data:..."}}
+        ]}
+      ]
       ```
-  - Calls OpenRouter with the selected model:
-    ```python
-    completion = client.chat.completions.create(
-      model=model_choice,
-      messages=api_messages,
-      max_tokens=32768,
-    )
-    ```
-  - Returns the first choice’s text content and a status message like:
-    ```
-    ✅ Analysis complete with <model_choice>.
-    ```
-
-- UI (Gradio `Blocks`):
-  - Model selection dropdown with vision-capable models
-  - Image uploader (PIL)
-  - Prompt textbox
-  - “Analyze” button
-  - “🗑️ Clear I/O” button
-  - Read-only textbox for the model’s response
-  - Status area for success/error messages
+    - Calls OpenRouter with the user's selected model and parameters:
+      ```python
+      completion = client.chat.completions.create(
+        model=model_choice,
+        messages=api_messages,
+        max_tokens=int(max_tokens),
+      )
+      ```
+    - Returns the text content and updates the UI.
+- **UI (Gradio `Blocks`)**: The UI is laid out in two columns, with inputs on the left and outputs/settings on the right.
 
 ---
 
 ## Changing or adding models
 
-- Use the dropdown in the UI to switch models at runtime—no code changes needed.
-- To change the default or add/remove options, edit the dropdown in `openrouter-image-analysis.py`:
-  ```python
-  model_choice = gr.Dropdown(
-      label="Choose a Vision Model",
-      choices=[
-          "x-ai/grok-4-fast:free",
-          "qwen/qwen2.5-vl-72b-instruct:free",
-          "meta-llama/llama-3.2-90b-vision-instruct",
-          "google/gemini-2.0-flash-exp:free",
-          "meta-llama/llama-4-maverick:free",
-      ],
-      value="x-ai/grok-4-fast:free"
-  )
-  ```
-- Find available models and pricing on [OpenRouter Models](https://openrouter.ai/models). Some models require additional provider setup or may not support images.
+To change the models available in the dropdown, simply **edit the `models-image.txt` file**.
+
+1.  Open `models-image.txt` in a text editor.
+2.  Add, remove, or reorder the model names (one per line).
+3.  The model on the very first line will be the default selection when the app starts.
+4.  Save the file and restart the `openrouter-image-analysis.py` script to see your changes.
+
+Find available models and pricing on [OpenRouter Models](https://openrouter.ai/models).
 
 ---
 
 ## Troubleshooting
 
-- “CRITICAL: OPENROUTER_API_KEY environment variable not found.”  
+- **“CRITICAL: OPENROUTER_API_KEY environment variable not found.”**
   Set your key and restart the app. Confirm the variable is in the same shell session used to run Python.
 
-- 401 Unauthorized or similar auth errors  
-  Ensure the key is valid, has not expired, and is prefixed correctly (e.g., `sk-or-...`).
+- **`FileNotFoundError` on startup.**
+  Make sure you have created `models-image.txt` and `system-prompt-image.txt` in the same directory as the script.
 
-- Large image issues or timeouts  
-  Very large uploads may slow down encoding or exceed limits. Try smaller images, or compress before uploading.
+- **Blank or partial responses.**
+  This can happen if the value of "Max Tokens" is too low. Try increasing the slider. Free models may also throttle or return empty content under heavy load.
 
-- Blank or partial responses  
-  Free tiers or certain models may throttle or return empty/short content under load. Try again, switch models, or reduce prompt size. Note that responses can still be limited by provider-side caps even with `max_tokens=32768`.
-
-- UI shows an unexpected error  
-  The status area will show errors like:
-  ```
-  ❌ An unexpected error occurred: <details>
-  ```
-  Check your network, model availability on OpenRouter, and logs in the terminal.
+- **UI shows an unexpected error.**
+  The status area will show errors like `❌ An unexpected error occurred: <details>`. Check your network, model availability on OpenRouter, and logs in the terminal.
 
 ---
 
@@ -393,32 +388,9 @@ File: `openrouter-image-analysis.py`
 
 - Never commit API keys to source control.
 - Prefer environment variables or a secret manager for production use.
-- The app converts images to JPEG for transmission; transparency will be lost, and color profiles may change.
+- The app converts images to JPEG for transmission; transparency will be lost.
 - Large images increase memory usage and latency due to base64 encoding.
 
----
-
-## Extending the app
-
-Ideas:
-- Add more models to the dropdown or group them by provider.
-- Persist last-used model selection.
-- Support streaming responses.
-- Temperature/Top-p controls.
-- Drag-and-drop multiple images.
-- Preserve original image format (PNG/WebP) when possible.
-- Add logging and richer error messages in the UI.
-- Export results (e.g., JSON with detected entities/tags).
-
----
-
-## License and Acknowledgments
-
-- Uses the `openai` Python SDK, pointing at the OpenRouter API.
-- UI built with [Gradio](https://gradio.app).
-- Models provided via [OpenRouter](https://openrouter.ai).
-
-See the repository’s license file for details.
 
 # 👁️🛠️ Multimodal Image Analyzer & Generator (via OpenRouter)
 
