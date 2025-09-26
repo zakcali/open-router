@@ -1,23 +1,25 @@
-# OpenRouter Gradio Text-to-Text Chatbot
+# OpenRouter Text-to-Text Chatbot
 
-A lightweight Gradio app to chat with multiple (free) models on [OpenRouter](https://openrouter.ai/) using the OpenAI Python SDK. It supports streaming responses, optional reasoning traces (when available), message downloads, and automatic cleanup of temporary files.
+A lightweight Gradio app to chat with multiple models on [OpenRouter](https://openrouter.ai/) using the OpenAI Python SDK. It supports streaming responses, optional reasoning traces, message downloads, and automatic cleanup of temporary files.
+
+The chatbot is now configurable via external files, allowing you to easily customize the model list and system prompt without editing the Python code.
 
 - File: `openrouter-gradio-text2text.py`
 - Repo: [zakcali/open-router](https://github.com/zakcali/open-router)
 
 ## Features
 
-- Simple, fast chat UI built with Gradio
-- Streaming token-by-token responses
-- System instructions (system prompt) per session
-- Model picker with several free models on OpenRouter
+- Simple, fast chat UI built with Gradio.
+- **External Configuration:** Manage the model list and default system prompt via `models.txt` and `system-prompt.txt`.
+- Streaming token-by-token responses.
+- Model picker with a customizable list of models from OpenRouter.
 - Reasoning controls:
-  - For OpenAI models (gpt-oss/gpt-5): uses `reasoning: { effort: low|medium|high }`
-  - For Grok-4-fast: enables reasoning when effort is medium or high
-  - Other models ignore this setting gracefully
-- Adjustable temperature and max tokens
-- Download the last assistant response as a Markdown file
-- Temporary files are automatically cleaned up on exit
+  - For OpenAI models (gpt-oss/gpt-5): uses `reasoning: { effort: low|medium|high }`.
+  - For Grok-4-fast: enables reasoning when effort is medium or high.
+  - Other models ignore this setting gracefully.
+- Adjustable temperature and max tokens.
+- Download the last assistant response as a Markdown file.
+- Temporary files are automatically cleaned up on exit.
 
 ## Demo (How it works)
 
@@ -38,17 +40,33 @@ pip install -U gradio openai
 
 ## Setup
 
-1. Get an OpenRouter API key: https://openrouter.ai/
-2. Set the environment variable:
+1.  **Get an OpenRouter API Key**: Visit https://openrouter.ai/ to get your key.
+2.  **Set the Environment Variable**:
 
-   - macOS/Linux:
-     ```bash
-     export OPENROUTER_API_KEY="your-api-key"
-     ```
-   - Windows (PowerShell):
-     ```powershell
-     setx OPENROUTER_API_KEY "your-api-key"
-     ```
+    -   macOS/Linux:
+        ```bash
+        export OPENROUTER_API_KEY="your-api-key"
+        ```
+    -   Windows (PowerShell):
+        ```powershell
+        setx OPENROUTER_API_KEY "your-api-key"
+        ```
+
+3.  **(Required) Create `models.txt`**: In the same directory as the script, create a file named `models.txt`. Add the OpenRouter model identifiers you want to use, one per line. For example:
+    ```text
+    x-ai/grok-4-fast:free
+    meta-llama/llama-3.1-405b-instruct:free
+    google/gemini-2.0-flash-exp:free
+    openai/gpt-oss-120b:free
+    qwen/qwen3-coder:free
+    ```
+    The first model in this file will be the default selection in the UI.
+
+4.  **(Optional) Create `system-prompt.txt`**: In the same directory, you can create a file named `system-prompt.txt` to set the default system instructions. For example:
+    ```text
+    You are an expert programmer. Your answers should be concise, accurate, and provide code examples where possible.
+    ```
+    If this file is not found, a generic "You are a helpful assistant" prompt will be used.
 
 No other keys are needed. The script configures the OpenAI SDK to point to OpenRouter:
 
@@ -71,37 +89,30 @@ Then open the local URL Gradio prints (e.g., http://127.0.0.1:7860). Press Ctrl+
 
 ## Using the App
 
-- Chat area:
-  - Enter a message and click Send (or press Enter).
-  - Streaming tokens update the assistant message live.
-  - Stop cancels in-flight requests.
-  - Clear Chat resets the conversation and hides the download button.
+-   **Chat area**:
+    -   Enter a message and click Send (or press Enter).
+    -   Streaming tokens update the assistant message live.
+    -   **Stop** cancels in-flight requests.
+    -   **Clear Chat** resets the conversation and hides the download button.
 
-- Right panel controls:
-  - Model dropdown: choose any free model listed (default: `x-ai/grok-4-fast:free`).
-  - System Instructions: set the assistant’s general behavior.
-  - Reasoning Control:
-    - OpenAI models (`openai/gpt-oss-*`, `openai/gpt-5-*`): sets `reasoning.effort` to `low|medium|high`.
-    - Grok-4-fast: when `medium` or `high`, enables `reasoning.enabled=true`.
-    - Other models ignore this control, and you may see “This model does not expose reasoning traces.”
-  - Temperature: 0.0–2.0
-  - Max Tokens: 100–65535 (upper bound depends on model/support)
+-   **Right panel controls**:
+    -   **Model dropdown**: Choose any model from your `models.txt` file.
+    -   **System Instructions**: Set the assistant’s behavior. The initial value is loaded from `system-prompt.txt`.
+    -   **Reasoning Control**:
+        -   OpenAI models (`openai/gpt-oss-*`, `openai/gpt-5-*`): sets `reasoning.effort` to `low|medium|high`.
+        -   Grok-4-fast: when `medium` or `high`, enables `reasoning.enabled=true`.
+        -   Other models ignore this control, and you may see “This model does not expose reasoning traces.”
+    -   **Temperature**: 0.0–2.0
+    -   **Max Tokens**: 100–65535 (upper bound depends on model/support)
 
-- Download Last Response:
-  - Becomes visible after an assistant reply completes.
-  - Saves a `.md` file to your OS temp directory and provides a direct download.
-  - Files are tracked and removed automatically on app exit.
+-   **Download Last Response**:
+    -   Becomes visible after an assistant reply completes.
+    -   Saves a `.md` file to your OS temp directory and provides a direct download.
+    -   Files are tracked and removed automatically on app exit.
 
 ## Models
 
-The dropdown lists several free models, for example:
-
-- OpenAI OSS:
-  - `openai/gpt-oss-20b:free`
-  - `openai/gpt-oss-120b:free`
-- Grok:
-  - `x-ai/grok-4-fast:free`
-- Meta Llama, Qwen, DeepSeek, Google Gemma, Zhipu GLM, Moonshot, etc.
+The model dropdown is now populated from your `models.txt` file. You can find a list of available models, including free ones, on the [OpenRouter Models page](https://openrouter.ai/models).
 
 Notes:
 - This is a text-to-text app. If you select a vision-capable model, it will be used in text mode.
@@ -110,7 +121,7 @@ Notes:
 ## How Streaming and Reasoning Work
 
 The core function `chat_with_openai`:
-- Builds the message list from your chat history and optional system instructions.
+- Builds the message list from your chat history and system instructions.
 - Prepares request parameters per selected model:
   - Always streams: `stream=True`.
   - For OpenAI models (gpt-oss/gpt-5), sets:
@@ -131,33 +142,38 @@ Temporary files are tracked in a global list and removed by an `atexit` handler 
 
 ## Common Issues and Troubleshooting
 
-- Missing API key:
+- **Missing API key**:
   - Symptom: HTTP 401/403 or “You must provide an API key.”
   - Fix: Ensure `OPENROUTER_API_KEY` is set in your environment and your shell session is refreshed.
 
-- Rate limits or model unavailability:
-  - Symptom: Server error or stalls.
-  - Fix: Try a different listed free model or reduce request frequency.
+- **`models.txt` not found**:
+  - Symptom: The app starts with a default, limited list of models.
+  - Fix: Create `models.txt` in the same directory as the script and populate it with your desired model identifiers.
 
-- Large `max_tokens`:
+- **Rate limits or model unavailability**:
+  - Symptom: Server error or stalls.
+  - Fix: Try a different model from your list or reduce request frequency.
+
+- **Large `max_tokens`**:
   - Symptom: Errors if the selected model doesn’t support the requested context/length.
   - Fix: Lower `max_tokens` or temperature; consider shorter prompts.
 
-- No reasoning content:
+- **No reasoning content**:
   - Many models don’t emit a separate reasoning stream. This is expected behavior.
 
 ## Extending the Script
 
-- Add a new model to the dropdown.
-- Map new reasoning semantics:
+- **Add or remove a model**: Simply edit the `models.txt` file and restart the app.
+- **Change the default system prompt**: Edit the `system-prompt.txt` file.
+- **Map new reasoning semantics**:
   ```python
   elif "provider/model-name" in model_choice:
       request_params["extra_body"] = {
           "reasoning": { "some_param": "value" }
       }
   ```
-- Tweak the streaming flush interval by adjusting `flush_interval_s`.
-- Make the app public by launching with `demo.launch(share=True)`.
+- **Tweak the streaming flush interval**: Adjust the `flush_interval_s` variable in the script.
+- **Make the app public**: Launch it with `demo.launch(share=True)`.
 
 ## Security
 
