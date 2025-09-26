@@ -82,7 +82,7 @@ client = OpenAI(
 From the repository root:
 
 ```bash
-python openrouter-gradio-text2text.py
+python openrouter-text2text.py
 ```
 
 Then open the local URL Gradio prints (e.g., http://127.0.0.1:7860). Press Ctrl+C to stop. All tracked temporary download files are deleted on exit.
