@@ -148,7 +148,7 @@ default_model = model_list[0] if model_list else None
 
 
 # --- Gradio User Interface ---
-with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text Analyzer") as demo:
+with gr.Blocks(title="👁️ Multimodal Image & Text Analyzer") as demo:
     gr.Markdown("# 👁️ Multimodal Image & Text Analyzer (via OpenRouter)")
     gr.Markdown("Provide a text prompt and/or an image, and select a model to analyze it.")
     with gr.Row():
@@ -178,7 +178,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
                 visible=True,
                 lines=20,
                 interactive=False,
-                show_copy_button=True 
+                # NEW (Gradio 6.0)
+                buttons=["copy"] 
             )
             # Download button, initially hidden
             download_btn = gr.DownloadButton(
@@ -221,4 +222,5 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal Image & Text An
 
 if __name__ == "__main__":
     print("Launching Gradio interface... Press Ctrl+C to exit.")
-    demo.launch()
+    # NEW (Gradio 6.0)
+    demo.launch(theme=gr.themes.Soft())
