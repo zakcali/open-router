@@ -169,7 +169,8 @@ with gr.Blocks(title="💬 OpenRouter Chatbot") as demo:
     gr.Markdown("# 💬 Chatbot (Powered by OpenRouter)")
     with gr.Row():
         with gr.Column(scale=3):
-            chatbot = gr.Chatbot(height=500, type="messages", show_copy_button=True)
+            # NEW (Gradio 6.0)
+            chatbot = gr.Chatbot(height=500, type="messages", buttons=["copy"])
             with gr.Row():
                 msg = gr.Textbox(placeholder="Type a message...", scale=4, show_label=False)
                 send_btn = gr.Button("Send", scale=1)
@@ -222,4 +223,5 @@ demo.queue()
 if __name__ == "__main__":
     print("Launching Gradio interface... Press Ctrl+C to exit.")
     print("Temporary files for this session will be cleaned up automatically on exit.")
-    demo.launch()
+# NEW (Gradio 6.0)
+demo.launch(theme=gr.themes.Default())
