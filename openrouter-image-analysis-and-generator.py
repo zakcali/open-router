@@ -174,7 +174,7 @@ initial_system_prompt = load_system_prompt()
 default_model = model_list[0] if model_list else None
 
 # --- Gradio User Interface ---
-with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as demo:
+with gr.Blocks(title="👁️ Multimodal AI Studio") as demo:
     gr.Markdown("# 👁️ Multimodal AI Studio (via OpenRouter)")
     gr.Markdown("Provide a text prompt and/or an image to any model and see what happens.")
     with gr.Row():
@@ -202,13 +202,15 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as 
                 label="Model's Text Response",
                 lines=5,
                 interactive=False,
-                show_copy_button=True
+                # NEW (Gradio 6.0)
+                buttons=["copy"]
             )
             download_btn = gr.DownloadButton(
                 "⬇️ Download Text Response",
                 visible=False
             )
-            image_output_box = gr.Image(label="Image Output", interactive=False, height=400)
+            # NEW download button (Gradio 6.0)
+            image_output_box = gr.Image(label="Image Output", interactive=False, height=400, buttons=["download"])
             
             # --- ADDED UI ELEMENTS ---
             instructions = gr.Textbox(
@@ -244,4 +246,5 @@ with gr.Blocks(theme=gr.themes.Soft(), title="👁️ Multimodal AI Studio") as 
 
 if __name__ == "__main__":
     print("Launching Gradio interface... Press Ctrl+C to exit.")
-    demo.launch()
+    # NEW (Gradio 6.0)
+    demo.launch(theme=gr.themes.Soft())
