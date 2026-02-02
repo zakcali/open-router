@@ -593,7 +593,7 @@ Find available models and pricing on [OpenRouter Models](https://openrouter.ai/m
 - **UI shows an unexpected error.**
   The status area will show errors like: `❌ An unexpected error occurred: <details>`. Check your network, model availability on OpenRouter, and logs in the terminal.
 
-  ## Troubleshooting
+  ## What's new?
   
 - **Code migrated to Gradio 6.0**
   
