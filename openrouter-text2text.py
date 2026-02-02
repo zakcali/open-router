@@ -170,7 +170,7 @@ with gr.Blocks(title="💬 OpenRouter Chatbot") as demo:
     with gr.Row():
         with gr.Column(scale=3):
             # NEW (Gradio 6.0)
-            chatbot = gr.Chatbot(height=500, type="messages", buttons=["copy"])
+            chatbot = gr.Chatbot(height=500, buttons=["copy"])
             with gr.Row():
                 msg = gr.Textbox(placeholder="Type a message...", scale=4, show_label=False)
                 send_btn = gr.Button("Send", scale=1)
